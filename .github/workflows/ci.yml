@@ -1,0 +1,198 @@
+# ============================================================
+# WORKFLOW: CI — Integración Continua
+# ============================================================
+# PROPÓSITO: Corre los tests automáticamente en cada push
+# o Pull Request hacia las ramas principales del proyecto.
+#
+# CUÁNDO SE DISPARA:
+#   - Al hacer push a las ramas configuradas
+#   - Al abrir o actualizar un Pull Request hacia esas ramas
+# ============================================================
+
+name: # Ponle un nombre descriptivo, ej: "CI - Integration & Testing"
+
+# ------------------------------------------------------------
+# DISPARADORES
+# Define en qué ramas corre este workflow.
+# CONFIGURAR:
+#   - Cambia los nombres de ramas según tu estrategia de Git
+#     (ej: main, develop, staging, release/*)
+#   - Si solo quieres CI en PRs (no en push), elimina el bloque push
+#   - Si quieres CI en todas las ramas, usa: branches: ['**']
+# ------------------------------------------------------------
+on:
+  push:
+    branches:
+      - # Ej: main
+      - # Ej: develop
+      - # Agrega más ramas si las necesitas
+  pull_request:
+    branches:
+      - # Ej: main
+      - # Ej: develop
+      - # Agrega más ramas si las necesitas
+
+jobs:
+  test:
+    name: # Nombre del job, ej: "Test Suite"
+    runs-on: ubuntu-latest
+
+    # ----------------------------------------------------------
+    # TIMEOUT
+    # Tiempo máximo que puede correr el job antes de cancelarse.
+    # Ajusta según cuánto tardan normalmente tus tests.
+    # ----------------------------------------------------------
+    timeout-minutes: # Ej: 30
+
+    # ----------------------------------------------------------
+    # PERMISOS
+    # checks: write  → necesario para publicar resultados de tests
+    # contents: read → para hacer checkout del código
+    # ----------------------------------------------------------
+    permissions:
+      checks:   # write | read | none
+      contents: # write | read | none
+
+    steps:
+
+      # --------------------------------------------------------
+      # PASO 1: Checkout del código
+      # Descarga el código del repositorio en el runner.
+      # En la mayoría de los casos no necesita configuración extra.
+      # --------------------------------------------------------
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # --------------------------------------------------------
+      # PASO 2: Configurar el entorno de ejecución
+      # Cambia esto según el lenguaje/runtime de tu proyecto:
+      #   Python  → actions/setup-python
+      #   Node.js → actions/setup-node
+      #   Java    → actions/setup-java
+      #   .NET    → actions/setup-dotnet
+      # CONFIGURAR:
+      #   - La versión del runtime de tu proyecto
+      #   - cache: nombre del gestor de paquetes (pip, npm, yarn...)
+      #   - cache-dependency-path: archivo de dependencias
+      # --------------------------------------------------------
+      - name: Set up runtime
+        uses: # Ej: actions/setup-python@v4
+        with:
+          python-version: # Ej: '3.12'  (o node-version: '20', etc.)
+          cache:          # Ej: 'pip' | 'npm' | 'yarn'
+          cache-dependency-path: # Ej: requirements.txt | package-lock.json
+
+      # --------------------------------------------------------
+      # PASO 3: Instalar dependencias
+      # Adapta el comando según tu gestor de paquetes:
+      #   pip   → pip install -r requirements.txt
+      #   npm   → npm ci
+      #   yarn  → yarn install --frozen-lockfile
+      #   maven → mvn install -DskipTests
+      # --------------------------------------------------------
+      - name: Install dependencies
+        run: |
+          # Escribe aquí el comando de instalación de tu proyecto
+
+      # --------------------------------------------------------
+      # PASO 4: Ejecutar los tests
+      # IMPORTANTE: usa continue-on-error: true para que los
+      # pasos siguientes (publicar resultados) siempre corran,
+      # incluso si los tests fallan. El fallo real se fuerza
+      # más abajo en el último paso.
+      #
+      # CONFIGURAR según tu framework:
+      #   pytest   → pytest --junitxml=test-results.xml --cov=src/tumodulo
+      #   jest     → jest --ci --reporters=jest-junit
+      #   mocha    → mocha --reporter mocha-junit-reporter
+      #   dotnet   → dotnet test --logger trx
+      #
+      # COVERAGE (opcional):
+      #   --cov-report=term          → muestra en consola
+      #   --cov-report=html:htmlcov  → genera reporte HTML descargable
+      #
+      # NOTA: El archivo JUnit XML (test-results.xml) es necesario
+      # para el paso de publicación de resultados más abajo.
+      # --------------------------------------------------------
+      - name: Run tests
+        id: pytest_run
+        continue-on-error: true
+        run: |
+          # Escribe aquí el comando completo para correr tus tests
+          # Incluye las flags de JUnit XML y coverage si las usas
+
+      # --------------------------------------------------------
+      # PASO 5: Verificar si se generó el XML de resultados
+      # No modificar — este paso alimenta la condición del
+      # paso de publicación. Solo ajusta el nombre del archivo
+      # si usas un nombre distinto a test-results.xml
+      # --------------------------------------------------------
+      - name: Check if test-results.xml exists
+        id: check_xml
+        run: |
+          if [ -f test-results.xml ]; then   # ← cambia el nombre si es distinto
+            echo "xml_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "xml_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      # --------------------------------------------------------
+      # PASO 6: Guardar el archivo XML de resultados como artefacto
+      # Permite descargar los resultados desde la UI de GitHub Actions.
+      # CONFIGURAR:
+      #   - name: nombre del artefacto que verás en la UI
+      #   - path: ruta al archivo XML generado por tus tests
+      # --------------------------------------------------------
+      - name: Upload test results artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: # Ej: test-results
+          path: # Ej: test-results.xml
+          if-no-files-found: ignore
+
+      # --------------------------------------------------------
+      # PASO 7: Guardar el reporte de coverage como artefacto
+      # (Opcional — solo si tu herramienta genera un reporte HTML)
+      # CONFIGURAR:
+      #   - name: nombre del artefacto que verás en la UI
+      #   - path: carpeta donde se generó el reporte HTML
+      # --------------------------------------------------------
+      - name: Upload coverage report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: # Ej: coverage-report
+          path: # Ej: htmlcov/
+          if-no-files-found: ignore
+
+      # --------------------------------------------------------
+      # PASO 8: Publicar resultados de tests en la UI de GitHub
+      # Muestra los tests como checks visibles en el PR.
+      # Requiere permiso: checks: write
+      # CONFIGURAR:
+      #   - name: etiqueta que aparecerá en la pestaña Checks del PR
+      #   - path: mismo archivo XML del paso anterior
+      #   - reporter: formato del XML
+      #       java-junit → pytest, JUnit, Jest, Mocha con reporter JUnit
+      #       dotnet-trx → proyectos .NET
+      # --------------------------------------------------------
+      - name: Publish test report
+        if: always() && steps.check_xml.outputs.xml_exists == 'true'
+        uses: dorny/test-reporter@v1
+        with:
+          name:     # Ej: "Pytest Results" o "Jest Results"
+          path:     # Ej: test-results.xml
+          reporter: # Ej: java-junit | dotnet-trx
+
+      # --------------------------------------------------------
+      # PASO 9: Forzar fallo si los tests fallaron
+      # Este paso garantiza que el workflow termine en error
+      # cuando los tests fallan, incluso con continue-on-error.
+      # No es necesario modificarlo.
+      # --------------------------------------------------------
+      - name: Fail if tests failed
+        if: always() && steps.pytest_run.outcome == 'failure'
+        run: |
+          echo "❌ Tests failed. Check logs above for details."
+          exit 1

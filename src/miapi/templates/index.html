@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<title>¿Estás currando?</title>
+<style>
+  body { font-family: system-ui, sans-serif; text-align: center; background:#111; color:#eee; }
+  video { border-radius: 12px; max-width: 90%; margin-top: 1rem; }
+  #msg { font-size: 1.4rem; margin-top: 1rem; min-height: 2rem; }
+  .ok { color: #6f6; } .bad { color: #f66; font-weight: bold; }
+</style>
+</head>
+<body>
+  <h1>Vigilante de vagos 👀</h1>
+  <video id="cam" autoplay playsinline muted width="480" height="360"></video>
+  <div id="msg">Iniciando cámara…</div>
+<script>
+const video = document.getElementById('cam');
+const msg   = document.getElementById('msg');
+const canvas = document.createElement('canvas');
+
+async function start() {
+  const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+  video.srcObject = stream;
+  await video.play();
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  setInterval(tick, 3000);
+}
+
+async function tick() {
+  canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+  const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.7));
+  const res  = await fetch('/api/check', { method: 'POST', body: blob });
+  const data = await res.json();
+  msg.textContent = data.message;
+  msg.className = data.personPresent ? 'ok' : 'bad';
+  if (!data.personPresent) shout();
+}
+
+function shout() {
+  const u = new SpeechSynthesisUtterance('¡TRABAJE, VAGO!');
+  u.lang = 'es-ES'; u.rate = 1; u.pitch = 0.8; u.volume = 1;
+  speechSynthesis.cancel();
+  speechSynthesis.speak(u);
+}
+
+start().catch(e => msg.textContent = 'Error cámara: ' + e.message);
+</script>
+</body>
+</html>mkdir .p tests

@@ -1,0 +1,195 @@
+# ============================================================
+# WORKFLOW: Testing Nocturno / Programado
+# ============================================================
+# PROPÓSITO: Ejecuta una suite de tests exhaustiva de forma
+# automática en horario fijo, sin interferir con el CI principal.
+# Ideal para tests lentos, de integración o con cobertura completa.
+#
+# DIFERENCIA CON ci.yml:
+#   - ci.yml → tests rápidos en cada push/PR
+#   - test.yml → tests completos y verbosos en horario programado
+# ============================================================
+
+name: # Ponle un nombre descriptivo, ej: "Testing - Nightly & Scheduled"
+
+# ------------------------------------------------------------
+# DISPARADORES
+# CONFIGURAR:
+#   a) schedule (cron): define cuándo corre automáticamente.
+#      Formato: minuto hora día-mes mes día-semana
+#      Ejemplos:
+#        '0 2 * * *'     → todos los días a las 2:00 AM UTC
+#        '0 6 * * 1-5'   → lunes a viernes a las 6:00 AM UTC
+#        '0 0 * * 0'     → todos los domingos a medianoche UTC
+#      Herramienta útil para construir expresiones: https://crontab.guru
+#
+#   b) workflow_dispatch: permite lanzarlo manualmente desde
+#      la UI de GitHub (Actions > tu workflow > Run workflow)
+#      Déjalo siempre — es muy útil para debugging.
+# ------------------------------------------------------------
+on:
+  schedule:
+    - cron: # Ej: '0 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  nightly-test:
+    name: # Nombre del job, ej: "Nightly Test Suite (Verbose)"
+    runs-on: ubuntu-latest
+
+    # ----------------------------------------------------------
+    # TIMEOUT
+    # Los tests nocturnos suelen tardar más que los de CI.
+    # Ajusta según tus tiempos reales de ejecución.
+    # ----------------------------------------------------------
+    timeout-minutes: # Ej: 60
+
+    # ----------------------------------------------------------
+    # PERMISOS
+    # checks: write  → necesario para publicar resultados de tests
+    # contents: read → para hacer checkout del código
+    # ----------------------------------------------------------
+    permissions:
+      checks:   # write | read | none
+      contents: # write | read | none
+
+    steps:
+
+      # --------------------------------------------------------
+      # PASO 1: Checkout del código
+      # Descarga el código del repositorio en el runner.
+      # Por defecto hace checkout del branch por defecto (main).
+      # Si quieres testear otro branch en el schedule, agrega:
+      #   with:
+      #     ref: develop
+      # --------------------------------------------------------
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # --------------------------------------------------------
+      # PASO 2: Configurar el entorno de ejecución
+      # Idéntico al ci.yml — cambia según tu lenguaje/runtime:
+      #   Python  → actions/setup-python
+      #   Node.js → actions/setup-node
+      #   Java    → actions/setup-java
+      #   .NET    → actions/setup-dotnet
+      # CONFIGURAR:
+      #   - La versión del runtime de tu proyecto
+      #   - cache: nombre del gestor de paquetes
+      #   - cache-dependency-path: archivo de dependencias
+      # --------------------------------------------------------
+      - name: Set up runtime
+        uses: # Ej: actions/setup-python@v4
+        with:
+          python-version: # Ej: '3.12'  (o node-version: '20', etc.)
+          cache:          # Ej: 'pip' | 'npm' | 'yarn'
+          cache-dependency-path: # Ej: requirements.txt | package-lock.json
+
+      # --------------------------------------------------------
+      # PASO 3: Instalar dependencias
+      # Igual que en ci.yml. Adapta según tu gestor de paquetes:
+      #   pip   → pip install -r requirements.txt
+      #   npm   → npm ci
+      #   yarn  → yarn install --frozen-lockfile
+      # --------------------------------------------------------
+      - name: Install dependencies
+        run: |
+          # Escribe aquí el comando de instalación de tu proyecto
+
+      # --------------------------------------------------------
+      # PASO 4: Ejecutar los tests (modo verbose)
+      # Igual que ci.yml PERO con más detalle en la salida.
+      # DIFERENCIA CLAVE: agrega el flag verbose de tu framework:
+      #   pytest  → -v o -vv
+      #   jest    → --verbose
+      #   mocha   → --reporter spec
+      #
+      # CONFIGURAR según tu framework:
+      #   pytest   → pytest -v --junitxml=test-results.xml --cov=src/tumodulo
+      #   jest     → jest --ci --verbose --reporters=jest-junit
+      #   mocha    → mocha --reporter mocha-junit-reporter
+      #   dotnet   → dotnet test --logger trx
+      #
+      # NOTA: El archivo JUnit XML es necesario para el paso
+      # de publicación de resultados más abajo.
+      # --------------------------------------------------------
+      - name: Run tests (verbose)
+        id: pytest_run
+        continue-on-error: true
+        run: |
+          # Escribe aquí el comando completo para correr tus tests
+          # Recuerda incluir el flag verbose y el JUnit XML
+
+      # --------------------------------------------------------
+      # PASO 5: Verificar si se generó el XML de resultados
+      # No modificar — solo ajusta el nombre del archivo si
+      # usas uno distinto a test-results.xml
+      # --------------------------------------------------------
+      - name: Check if test-results.xml exists
+        id: check_xml
+        run: |
+          if [ -f test-results.xml ]; then   # ← cambia si usas otro nombre
+            echo "xml_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "xml_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      # --------------------------------------------------------
+      # PASO 6: Guardar el archivo XML de resultados como artefacto
+      # CONFIGURAR:
+      #   - name: nombre del artefacto (usa un sufijo -nightly
+      #            para distinguirlo del artefacto de ci.yml)
+      #   - path: ruta al archivo XML generado por tus tests
+      # --------------------------------------------------------
+      - name: Upload test results artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: # Ej: test-results-nightly
+          path: # Ej: test-results.xml
+          if-no-files-found: ignore
+
+      # --------------------------------------------------------
+      # PASO 7: Guardar el reporte de coverage como artefacto
+      # (Opcional — solo si tu herramienta genera reporte HTML)
+      # CONFIGURAR:
+      #   - name: nombre del artefacto (usa sufijo -nightly)
+      #   - path: carpeta donde se generó el reporte HTML
+      # --------------------------------------------------------
+      - name: Upload coverage report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: # Ej: coverage-report-nightly
+          path: # Ej: htmlcov/
+          if-no-files-found: ignore
+
+      # --------------------------------------------------------
+      # PASO 8: Publicar resultados de tests en la UI de GitHub
+      # CONFIGURAR:
+      #   - name: etiqueta visible en la pestaña Checks
+      #            (agrega "(Nightly)" para distinguirlo del CI)
+      #   - path: mismo archivo XML del paso anterior
+      #   - reporter: formato del XML
+      #       java-junit → pytest, JUnit, Jest, Mocha con reporter JUnit
+      #       dotnet-trx → proyectos .NET
+      # --------------------------------------------------------
+      - name: Publish test report
+        if: always() && steps.check_xml.outputs.xml_exists == 'true'
+        uses: dorny/test-reporter@v1
+        with:
+          name:     # Ej: "Pytest Results (Nightly)"
+          path:     # Ej: test-results.xml
+          reporter: # Ej: java-junit | dotnet-trx
+
+      # --------------------------------------------------------
+      # PASO 9: Forzar fallo si los tests fallaron
+      # Garantiza que el workflow termine en error cuando los
+      # tests fallan, incluso con continue-on-error.
+      # No es necesario modificarlo.
+      # --------------------------------------------------------
+      - name: Fail if tests failed
+        if: always() && steps.pytest_run.outcome == 'failure'
+        run: |
+          echo "❌ Nightly tests failed. Check logs above for details."
+          exit 1

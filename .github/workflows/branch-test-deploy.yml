@@ -1,0 +1,182 @@
+# ============================================================
+# WORKFLOW: Branch Deploy
+# ============================================================
+# PROPÓSITO: Despliega una rama al entorno de pruebas
+# mediante un comando en comentarios de Pull Request.
+#
+# CÓMO USARLO:
+#   1. Abre un Pull Request en tu repositorio
+#   2. Escribe el comando trigger en un comentario del PR
+#      (por defecto suele ser: .deploy)
+#   3. El workflow se activa y despliega al entorno configurado
+# ============================================================
+
+name: # Ponle un nombre descriptivo, ej: "Branch Deploy - Mi App"
+
+# ------------------------------------------------------------
+# DISPARADOR
+# Escucha comentarios creados en issues/PRs
+# No es necesario cambiarlo salvo casos muy específicos
+# ------------------------------------------------------------
+on:
+  issue_comment:
+    types: [created]
+
+# ------------------------------------------------------------
+# PERMISOS
+# Define los permisos mínimos que necesita el workflow.
+# Ajusta según lo que realmente uses (pull-requests, contents, etc.)
+# ------------------------------------------------------------
+permissions:
+  pull-requests: # write | read | none
+  deployments:   # write | read | none
+  contents:      # write | read | none
+  checks:        # write | read | none
+  statuses:      # write | read | none
+
+jobs:
+  deploy:
+    # Solo corre si el comentario es en un PR (no en un Issue normal)
+    if: ${{ github.event.issue.pull_request }}
+
+    name: # Nombre del job, ej: "Deploy to Test Environment"
+    runs-on: ubuntu-latest
+
+    # ----------------------------------------------------------
+    # ENVIRONMENT
+    # Vincula este job a un entorno de GitHub (Settings > Environments)
+    # Útil para manejar secretos y reglas de protección por entorno
+    # ----------------------------------------------------------
+    environment:
+      name: # Nombre del entorno, ej: test | staging | production
+
+    steps:
+
+      # --------------------------------------------------------
+      # PASO 1: Detectar el comando de deploy en el comentario
+      # Usa la acción github/branch-deploy para parsear el trigger.
+      # CONFIGURAR:
+      #   - trigger: el comando que dispara el deploy, ej: ".deploy"
+      #   - environment: nombre del entorno destino
+      #   - stable_branch: rama estable base, ej: "main" o "test"
+      #   - update_branch: "warn" avisa si la rama está desactualizada
+      #                    "force" la actualiza automáticamente
+      # --------------------------------------------------------
+      - name: Parse branch-deploy command
+        uses: github/branch-deploy@v9
+        id: branch-deploy
+        with:
+          trigger:        # Ej: ".deploy"
+          environment:    # Ej: "test"
+          stable_branch:  # Ej: "test" o "main"
+          update_branch:  # "warn" o "force"
+
+      # --------------------------------------------------------
+      # PASO 2: Checkout del código
+      # Solo corre si branch-deploy dio el OK (continue == true)
+      # Se hace checkout del SHA exacto que branch-deploy detectó
+      # --------------------------------------------------------
+      - name: Checkout code
+        if: ${{ steps.branch-deploy.outputs.continue == 'true' }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.branch-deploy.outputs.sha }}
+          fetch-depth: 0
+
+      # --------------------------------------------------------
+      # PASO 3: Configurar el entorno de ejecución
+      # Cambia esto según el lenguaje/runtime de tu proyecto:
+      #   Python  → actions/setup-python
+      #   Node.js → actions/setup-node
+      #   Java    → actions/setup-java
+      #   .NET    → actions/setup-dotnet
+      # CONFIGURAR:
+      #   - python-version / node-version / etc.
+      #   - cache: nombre del gestor de paquetes (pip, npm, yarn...)
+      #   - cache-dependency-path: archivo de dependencias
+      # --------------------------------------------------------
+      - name: Set up runtime
+        if: ${{ steps.branch-deploy.outputs.continue == 'true' }}
+        uses: # Ej: actions/setup-python@v4
+        with:
+          python-version: # Ej: '3.12'  (o node-version: '20', etc.)
+          cache:          # Ej: 'pip' | 'npm' | 'yarn'
+          cache-dependency-path: # Ej: requirements.txt | package-lock.json
+
+      # --------------------------------------------------------
+      # PASO 4: Instalar dependencias
+      # Adapta el comando según tu gestor de paquetes:
+      #   pip   → pip install -r requirements.txt
+      #   npm   → npm ci
+      #   yarn  → yarn install --frozen-lockfile
+      #   maven → mvn install
+      # --------------------------------------------------------
+      - name: Install dependencies
+        if: ${{ steps.branch-deploy.outputs.continue == 'true' }}
+        run: |
+          # Escribe aquí el comando de instalación de tu proyecto
+
+      # --------------------------------------------------------
+      # PASO 5: Ejecutar tests antes del deploy
+      # Nunca desplegues sin pasar los tests primero.
+      # Cambia el comando según tu framework de testing:
+      #   pytest, jest, mocha, dotnet test, mvn test, etc.
+      # --------------------------------------------------------
+      - name: Run tests before deployment
+        if: ${{ steps.branch-deploy.outputs.continue == 'true' }}
+        run: |
+          # Escribe aquí el comando para correr tus tests
+
+      # --------------------------------------------------------
+      # PASO 6: Construir el paquete de despliegue
+      # Genera el artefacto que se desplegará (zip, docker image, etc.)
+      # Ejemplos:
+      #   zip -r ./publish/app.zip src/
+      #   docker build -t mi-app .
+      #   npm run build
+      # --------------------------------------------------------
+      - name: Build deployment package
+        if: ${{ steps.branch-deploy.outputs.continue == 'true' }}
+        run: |
+          # Escribe aquí cómo construyes tu artefacto de deploy
+
+      # --------------------------------------------------------
+      # PASO 7: Modo NOOP (simulación sin cambios reales)
+      # Este paso corre SOLO cuando el comando es un "dry-run".
+      # Úsalo para mostrar qué se desplegaría sin hacerlo realmente.
+      # No necesita muchos cambios, solo ajusta los echo si quieres.
+      # --------------------------------------------------------
+      - name: Display deployment package (noop mode)
+        if: >-
+          ${{ steps.branch-deploy.outputs.continue == 'true' &&
+              steps.branch-deploy.outputs.noop == 'true' }}
+        run: |
+          echo "📦 NOOP MODE - Files that would be deployed:"
+          # Escribe aquí cómo listarías los archivos del artefacto
+          echo "SHA: ${{ steps.branch-deploy.outputs.sha }}"
+          echo "Ref: ${{ steps.branch-deploy.outputs.ref }}"
+
+      # --------------------------------------------------------
+      # PASO 8: Deploy real al entorno
+      # Este paso corre SOLO cuando NO es modo noop.
+      # OPCIONES COMUNES:
+      #   a) Actualizar una rama git (como en este ejemplo)
+      #   b) Subir archivos a S3 / Azure Blob / GCS
+      #   c) Hacer deploy a un servidor via SSH
+      #   d) Llamar a una API de plataforma (Heroku, Render, etc.)
+      #   e) Push de imagen Docker a un registry
+      #
+      # Si usas GITHUB_TOKEN asegúrate de tener permiso "contents: write"
+      # Si necesitas secretos externos, agrégalos en:
+      #   Settings > Environments > [tu entorno] > Secrets
+      # --------------------------------------------------------
+      - name: Deploy to environment
+        if: >-
+          ${{ steps.branch-deploy.outputs.continue == 'true' &&
+              steps.branch-deploy.outputs.noop != 'true' }}
+        run: |
+          # Escribe aquí la lógica real de tu deploy
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Agrega aquí otros secretos que necesites:
+          # MI_SECRETO: ${{ secrets.MI_SECRETO }}
