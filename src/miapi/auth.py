@@ -5,6 +5,7 @@ NOTA: Este archivo contiene vulnerabilidades INTENCIONADAS para demo del agente 
 
 import hashlib
 import time
+import secrets
 
 from flask import request, jsonify, make_response
 
@@ -33,10 +34,8 @@ def authenticate(username: str, password: str) -> dict | None:
     """
     user = USERS_DB.get(username)
     if user and user["password"] == password:  # VULN: comparación directa
-        # VULN: Token generado con MD5 (inseguro para autenticación)
-        token = hashlib.md5(
-            f"{username}:{time.time()}".encode()
-        ).hexdigest()
+        # Token de sesión generado con aleatoriedad criptográficamente segura
+        token = secrets.token_urlsafe(32)
         return {"token": token, "role": user["role"], "username": username}
     return None
 
@@ -48,8 +47,7 @@ def generate_session_token(user_data: dict) -> str:
     VULN: Usa MD5 que es inseguro para propósitos criptográficos
     VULN: Sin expiración del token
     """
-    raw = f"{user_data['username']}:{SECRET_KEY}:{time.time()}"
-    return hashlib.md5(raw.encode()).hexdigest()
+    return secrets.token_urlsafe(32)
 
 
 def verify_token(token: str) -> bool:
