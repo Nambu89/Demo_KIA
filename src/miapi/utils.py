@@ -7,6 +7,7 @@ import os
 import shlex
 import subprocess
 import pickle
+import re
 import yaml
 import ast
 import operator
@@ -45,17 +46,26 @@ def run_shell_command(command: str) -> dict:
 
     if not args:
         return {"stdout": "", "stderr": "Comando vacío", "returncode": 1}
-
+def _is_valid_hostname(hostname: str) -> bool:
     allowed_commands = {"ls", "pwd", "whoami", "date", "echo"}
-    if args[0] not in allowed_commands:
+    Valida hostnames/IPv4/IPv6 simples para evitar inyección de comandos.
+    """
+    if not hostname or len(hostname) > 253:
+        return False
+    pattern = r"^[A-Za-z0-9][A-Za-z0-9\.\-:]{0,251}[A-Za-z0-9]$"
+    return re.fullmatch(pattern, hostname) is not None
         return {
-            "stdout": "",
-            "stderr": f"Comando no permitido: {args[0]}",
-            "returncode": 1,
-        }
 
-    result = subprocess.run(
-        args,
+def ping_host(hostname: str) -> str:
+            "returncode": 1,
+    Hace ping a un host de forma segura.
+    """
+    if not _is_valid_hostname(hostname):
+        return "Hostname inválido"
+
+
+        ["ping", "-c", "1", hostname],
+        shell=False,
         shell=False,
         capture_output=True,
         text=True,
