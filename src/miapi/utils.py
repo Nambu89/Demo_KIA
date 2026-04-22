@@ -100,12 +100,16 @@ def read_file(filepath: str) -> str:
     """
     Lee el contenido de un archivo.
 
-    VULN: Path Traversal — no valida que la ruta esté dentro del directorio permitido
-    Ejemplo de ataque: filepath = "../../../etc/passwd"
-    Correcto: validar con os.path.realpath() que está dentro de UPLOAD_FOLDER
+    El path recibido se resuelve dentro de un directorio permitido para
+    evitar Path Traversal.
     """
-    # VULN: open() directo con input de usuario sin sanitizar
-    with open(filepath, "r") as f:
+    base_dir = os.path.realpath("/tmp/uploads")
+    full_path = os.path.realpath(os.path.join(base_dir, filepath))
+
+    if os.path.commonpath([base_dir, full_path]) != base_dir:
+        raise ValueError("Ruta de archivo no permitida")
+
+    with open(full_path, "r") as f:
         return f.read()
 
 
