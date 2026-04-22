@@ -88,7 +88,6 @@ def create_user(username: str, password: str, email: str, role: str = "viewer") 
     Crea un nuevo usuario.
 
     VULN: Password almacenada en texto plano (OWASP A07)
-    VULN: SQL Injection via format() (OWASP A03)
     VULN: Logging de la password en texto plano (OWASP A09)
     """
     conn = get_connection()
@@ -97,11 +96,8 @@ def create_user(username: str, password: str, email: str, role: str = "viewer") 
     # Evitar logging de datos sensibles (password)
     logger.info("Creando usuario: %s, email: %s", username, email)
 
-    # VULN: SQL Injection via .format()
-    query = "INSERT INTO users (username, password, email, role) VALUES ('{}', '{}', '{}', '{}')".format(
-        username, password, email, role
-    )
-    cursor.execute(query)
+    query = "INSERT INTO users (username, password, email, role) VALUES (?, ?, ?, ?)"
+    cursor.execute(query, (username, password, email, role))
     conn.commit()
     user_id = cursor.lastrowid
     conn.close()
