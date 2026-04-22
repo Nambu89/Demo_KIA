@@ -110,9 +110,8 @@ def create_app() -> Flask:
             return jsonify({"content": content})
         except FileNotFoundError:
             return jsonify({"error": "Archivo no encontrado"}), 404
-        except Exception as e:
-            # VULN: Expone detalles del error interno (OWASP A09)
-            return jsonify({"error": str(e), "type": type(e).__name__}), 500
+        except Exception:
+            return jsonify({"error": "Error interno del servidor"}), 500
 
     @app.post("/api/render")
     def render_template_endpoint():
