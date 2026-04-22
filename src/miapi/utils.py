@@ -7,6 +7,8 @@ import os
 import subprocess
 import pickle
 import yaml
+import ast
+import operator
 
 from flask import render_template_string
 
@@ -151,16 +153,61 @@ def load_config_from_yaml(yaml_content: str) -> dict:
 
 # ─── VULN: eval() con input de usuario (OWASP A03) ──────────────────────────
 
+_SAFE_BINARY_OPERATORS = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.Div: operator.truediv,
+    ast.Mod: operator.mod,
+    ast.Pow: operator.pow,
+    ast.FloorDiv: operator.floordiv,
+}
+
+_SAFE_UNARY_OPERATORS = {
+    ast.UAdd: operator.pos,
+    ast.USub: operator.neg,
+}
+
+
+def _evaluate_math_ast(node):
+    if isinstance(node, ast.Expression):
+        return _evaluate_math_ast(node.body)
+
+    if isinstance(node, ast.Constant):
+        if isinstance(node.value, (int, float)):
+            return node.value
+        raise ValueError("Solo se permiten números en la expresión")
+
+    if isinstance(node, ast.Num):  # Compatibilidad con versiones antiguas de Python
+        return node.n
+
+    if isinstance(node, ast.BinOp):
+        op_type = type(node.op)
+        if op_type not in _SAFE_BINARY_OPERATORS:
+            raise ValueError("Operador no permitido")
+        left = _evaluate_math_ast(node.left)
+        right = _evaluate_math_ast(node.right)
+        return _SAFE_BINARY_OPERATORS[op_type](left, right)
+
+    if isinstance(node, ast.UnaryOp):
+        op_type = type(node.op)
+        if op_type not in _SAFE_UNARY_OPERATORS:
+            raise ValueError("Operador unario no permitido")
+        operand = _evaluate_math_ast(node.operand)
+        return _SAFE_UNARY_OPERATORS[op_type](operand)
+
+    raise ValueError("Expresión no permitida")
+
+
 def calculate_expression(expression: str) -> float:
     """
-    Evalúa una expresión matemática.
+    Evalúa una expresión matemática de forma segura (sin ejecutar código arbitrario).
 
-    VULN: eval() con input de usuario = Ejecución de Código Arbitrario
-    Ejemplo de ataque: expression = "__import__('os').system('rm -rf /')"
-    Correcto: usar ast.literal_eval() o una librería de parsing matemático
+    Solo se permiten números y operadores aritméticos básicos.
     """
-    # VULN: eval() directo con input de usuario
-    return eval(expression)
+    parsed = ast.parse(expression, mode="eval")
+    result = _evaluate_math_ast(parsed)
+    return float(result)
 
 
 def dynamic_filter(items: list, filter_expr: str) -> list:
