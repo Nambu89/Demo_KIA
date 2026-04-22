@@ -173,8 +173,8 @@ def create_app() -> Flask:
         try:
             config_data = load_config_from_yaml(yaml_content)
             return jsonify({"config": config_data})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
+        except Exception:
+            return jsonify({"error": "Error interno del servidor"}), 500
 
     return app
 
