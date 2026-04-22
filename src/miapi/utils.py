@@ -133,14 +133,18 @@ def save_uploaded_file(filename: str, content: bytes) -> str:
 
 def render_user_template(template_content: str, **context) -> str:
     """
-    Renderiza un template proporcionado por el usuario.
+    Renderiza contenido proporcionado por el usuario de forma segura.
 
-    VULN: Server-Side Template Injection (SSTI) — render_template_string con input de usuario
-    Ejemplo de ataque: template_content = "{{ config.items() }}"
-    Correcto: usar render_template() con archivos estáticos, nunca con input de usuario
+    Seguridad: no interpreta el contenido como plantilla Jinja para evitar SSTI.
+    Solo reemplaza placeholders literales de primer nivel: {{ key }} / {{key}}.
     """
-    # VULN: SSTI — el usuario controla el contenido del template
-    return render_template_string(template_content, **context)
+    rendered = template_content
+    for key, value in context.items():
+        placeholder_spaced = "{{ " + str(key) + " }}"
+        placeholder_compact = "{{" + str(key) + "}}"
+        rendered = rendered.replace(placeholder_spaced, str(value))
+        rendered = rendered.replace(placeholder_compact, str(value))
+    return rendered
 
 
 def generate_report(user_name: str, data: dict) -> str:
