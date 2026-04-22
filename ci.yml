@@ -1,0 +1,129 @@
+# =============================================================================
+# CI Pipeline - KIA Iberia
+# =============================================================================
+# Este workflow se ejecuta en cada Pull Request y push a main/develop.
+# Realiza: lint, tests, build y security scan.
+# =============================================================================
+
+name: CI Pipeline
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main]
+
+# Cancelar runs anteriores del mismo PR para ahorrar minutos
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Permisos minimos (least privilege)
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
+jobs:
+  # ===========================================================================
+  # JOB 1: Lint y Formato
+  # ===========================================================================
+  lint:
+    name: Lint & Format
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout codigo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Ejecutar ESLint
+        run: npm run lint
+
+      - name: Verificar formato (Prettier)
+        run: npm run format:check
+
+  # ===========================================================================
+  # JOB 2: Tests Unitarios
+  # ===========================================================================
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: lint  # Solo corre si lint pasa (fail fast)
+    steps:
+      - name: Checkout codigo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Ejecutar tests
+        run: npm test -- --coverage --ci
+
+      - name: Subir reporte de coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 7
+
+  # ===========================================================================
+  # JOB 3: Build
+  # ===========================================================================
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: test  # Solo corre si tests pasan
+    steps:
+      - name: Checkout codigo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Subir artifacts de build
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output
+          path: dist/
+          retention-days: 7
+
+  # ===========================================================================
+  # JOB 4: Security Scan (en paralelo con tests)
+  # ===========================================================================
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout codigo
+        uses: actions/checkout@v4
+
+      - name: Ejecutar audit de dependencias
+        run: npm audit --audit-level=high
+
+      - name: Dependabot alerts check
+        uses: actions/dependency-review-action@v4
+        if: github.event_name == 'pull_request'
