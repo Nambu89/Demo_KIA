@@ -94,8 +94,8 @@ def create_user(username: str, password: str, email: str, role: str = "viewer") 
     conn = get_connection()
     cursor = conn.cursor()
 
-    # VULN: Logging de datos sensibles
-    logger.info(f"Creando usuario: {username}, password: {password}, email: {email}")
+    # Evitar logging de datos sensibles (password)
+    logger.info("Creando usuario: %s, email: %s", username, email)
 
     # VULN: SQL Injection via .format()
     query = "INSERT INTO users (username, password, email, role) VALUES ('{}', '{}', '{}', '{}')".format(
