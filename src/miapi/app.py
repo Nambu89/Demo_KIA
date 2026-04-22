@@ -128,8 +128,9 @@ def create_app() -> Flask:
         try:
             html = render_user_template(template, **context)
             return jsonify({"html": html})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
+        except Exception:
+            app.logger.exception("Error rendering user template")
+            return jsonify({"error": "Error interno del servidor"}), 500
 
     @app.post("/api/calculate")
     def calculate():
