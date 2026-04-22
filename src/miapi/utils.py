@@ -185,8 +185,8 @@ def load_config_from_yaml(yaml_content: str) -> dict:
     VULN: yaml.load() sin Loader seguro permite ejecución de código
     Correcto: usar yaml.safe_load()
     """
-    # VULN: yaml.load() sin SafeLoader
-    return yaml.load(yaml_content)
+    # FIX: usar carga segura para evitar construcción de objetos arbitrarios
+    return yaml.safe_load(yaml_content)
 
 
 # ─── VULN: eval() con input de usuario (OWASP A03) ──────────────────────────
