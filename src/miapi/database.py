@@ -126,14 +126,13 @@ def search_users(search_term: str) -> list[dict]:
     """
     Busca usuarios con un término de búsqueda.
 
-    VULN: SQL Injection con LIKE (OWASP A03)
     VULN: Devuelve passwords en los resultados (OWASP A02)
     """
     conn = get_connection()
     cursor = conn.cursor()
-    # VULN: SQL Injection con LIKE
-    query = f"SELECT * FROM users WHERE username LIKE '%{search_term}%' OR email LIKE '%{search_term}%'"
-    cursor.execute(query)
+    query = "SELECT * FROM users WHERE username LIKE ? OR email LIKE ?"
+    like_pattern = f"%{search_term}%"
+    cursor.execute(query, (like_pattern, like_pattern))
     rows = cursor.fetchall()
     conn.close()
     # VULN: Devuelve la password en la respuesta
