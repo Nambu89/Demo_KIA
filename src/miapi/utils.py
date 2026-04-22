@@ -4,6 +4,7 @@ NOTA: Este archivo contiene vulnerabilidades INTENCIONADAS para demo del agente 
 """
 
 import os
+import shlex
 import subprocess
 import pickle
 import yaml
@@ -31,12 +32,31 @@ def run_shell_command(command: str) -> dict:
     """
     Ejecuta un comando shell y devuelve la salida.
 
-    VULN: subprocess con shell=True y input de usuario (OWASP A03)
+    Corregido: evita command injection eliminando shell=True y validando
+    el binario contra una allowlist.
     """
-    # VULN: shell=True con input sin sanitizar
+    if not command or not command.strip():
+        return {"stdout": "", "stderr": "Comando vacío", "returncode": 1}
+
+    try:
+        args = shlex.split(command)
+    except ValueError as e:
+        return {"stdout": "", "stderr": f"Comando inválido: {e}", "returncode": 1}
+
+    if not args:
+        return {"stdout": "", "stderr": "Comando vacío", "returncode": 1}
+
+    allowed_commands = {"ls", "pwd", "whoami", "date", "echo"}
+    if args[0] not in allowed_commands:
+        return {
+            "stdout": "",
+            "stderr": f"Comando no permitido: {args[0]}",
+            "returncode": 1,
+        }
+
     result = subprocess.run(
-        command,
-        shell=True,
+        args,
+        shell=False,
         capture_output=True,
         text=True,
     )
