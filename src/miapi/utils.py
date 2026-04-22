@@ -154,14 +154,13 @@ def generate_report(user_name: str, data: dict) -> str:
     VULN: XSS — el nombre del usuario se inyecta sin escapar en HTML
     VULN: SSTI — usa render_template_string
     """
-    template = f"""
-    <html>
-    <body>
-        <h1>Informe para {user_name}</h1>
-        <pre>{{{{ data | tojson }}}}</pre>
-    </body>
-    </html>
-    """
+    # VULN: user_name se interpola directamente sin escapar (XSS)
+    template = (
+        "<html><body>"
+        "<h1>Informe para " + user_name + "</h1>"
+        "<pre>{{ data | tojson }}</pre>"
+        "</body></html>"
+    )
     return render_template_string(template, data=data)
 
 

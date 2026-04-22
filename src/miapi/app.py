@@ -1,9 +1,8 @@
 from flask import Flask, request, jsonify, render_template
 from miapi.detector import analyze
 from miapi.auth import init_auth_routes
-from miapi.database import find_user, create_user, search_users, delete_user
+from miapi.database import create_user, search_users, delete_user
 from miapi.utils import (
-    run_system_command,
     run_shell_command,
     read_file,
     render_user_template,

@@ -3,8 +3,6 @@ Tests del módulo de base de datos.
 Patrón AAA (Arrange, Act, Assert).
 """
 
-import pytest
-
 from miapi.database import get_connection, create_user, find_user, search_users, delete_user
 
 

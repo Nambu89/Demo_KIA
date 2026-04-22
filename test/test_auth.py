@@ -3,9 +3,7 @@ Tests del módulo de autenticación.
 Patrón AAA (Arrange, Act, Assert).
 """
 
-import pytest
-
-from miapi.auth import authenticate, verify_token, generate_session_token, setup_cors
+from miapi.auth import authenticate, verify_token, generate_session_token
 
 
 class TestAuthenticate:
