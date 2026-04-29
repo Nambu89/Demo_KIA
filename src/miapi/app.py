@@ -1,4 +1,5 @@
 import os
+import logging
 from flask import Flask, request, jsonify, render_template
 from miapi.detector import analyze
 from miapi.auth import init_auth_routes
@@ -13,6 +14,8 @@ from miapi.utils import (
     ping_host,
 )
 from miapi.config import get_config
+
+logger = logging.getLogger(__name__)
 
 
 def create_app() -> Flask:
@@ -38,8 +41,9 @@ def create_app() -> Flask:
             return jsonify({"error": "No image"}), 400
         try:
             return jsonify(analyze(data).to_dict())
-        except Exception as e:
-            return jsonify({"error": str(e)}), 400
+        except Exception:
+            logger.exception("Error while processing /api/check")
+            return jsonify({"error": "Invalid request or processing error"}), 400
 
     # ─── Endpoints con vulnerabilidades intencionadas ────────────────────
 
