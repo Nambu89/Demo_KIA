@@ -1,3 +1,4 @@
+import os
 from flask import Flask, request, jsonify, render_template
 from miapi.detector import analyze
 from miapi.auth import init_auth_routes
@@ -180,5 +181,5 @@ def create_app() -> Flask:
 
 
 if __name__ == "__main__":
-    # VULN: debug=True en código que podría ir a producción
-    create_app().run(host="0.0.0.0", port=8000, debug=True)
+    debug_mode = os.getenv("FLASK_DEBUG", "false").lower() in ("1", "true", "yes", "on")
+    create_app().run(host="0.0.0.0", port=8000, debug=debug_mode)
